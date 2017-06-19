@@ -16,7 +16,7 @@ def get_center_factor(game, move):
     move_x, move_y = move
     bd_center_x, bd_center_y = (math.ceil(x / 2), math.ceil(y / 2))
 
-    cf = (x - bd_center_x) ** 2 + (y - bd_center_x) ** 2 - (move_x - bd_center_x) ** 2 - (move_y - bd_center_y) ** 2
+    cf = (x - bd_center_x) ** 2 + (y - bd_center_y) ** 2 - (move_x - bd_center_x) ** 2 - (move_y - bd_center_y) ** 2
 
     return cf
 
@@ -69,23 +69,13 @@ def custom_score(game, player):
     float
         The heuristic value of the current game state to the specified player.
     """
-    # if game.is_loser(player) or game.is_winner(player):
-    #     return game.utility(player)
-    #
-    # all_moves, _, opp_moves = get_moves(game, player)
-    # center_factor = get_center_factor(game, game.get_player_location(player))
-    #
-    # return float(len(all_moves) - len(opp_moves) + center_factor)
-    if game.is_loser(player):
-        return float("-inf")
+    if game.is_loser(player) or game.is_winner(player):
+        return game.utility(player)
 
-    if game.is_winner(player):
-        return float("inf")
+    all_moves, _, opp_moves = get_moves(game, player)
+    center_factor = get_center_factor(game, game.get_player_location(player))
 
-    score_2 = custom_score_2(game, player)
-    score_3 = custom_score_3(game, player)
-
-    return 0.3 * score_2 + 0.7 * score_3
+    return float(len(all_moves) - len(opp_moves) + center_factor)
 
 
 def custom_score_2(game, player):
@@ -110,23 +100,17 @@ def custom_score_2(game, player):
     float
         The heuristic value of the current game state to the specified player.
     """
-    # all_moves, _, opp_moves = get_moves(game, player)
-    #
-    # if not opp_moves:
-    #     return float("inf")
-    # if not all_moves:
-    #     return float("-inf")
-    # return float(len(all_moves) - len(opp_moves) + sum(get_center_factor(game, m) for m in all_moves) +
-    #              common_moves(game, player) + interfering_moves(game, player))
-    if game.is_loser(player):
+    all_moves, _, opp_moves = get_moves(game, player)
+
+    if not opp_moves:
+        return float("inf")
+    if not all_moves:
         return float("-inf")
 
-    if game.is_winner(player):
-        return float("inf")
+    possible_moves = len(all_moves) - len(opp_moves)
+    all_common = common_moves(game, player)
 
-    _, own_moves, opp_moves = get_moves(game, player)
-
-    return float(len(own_moves) - 3 * len(opp_moves))
+    return float(possible_moves + sum(get_center_factor(game, m) for m in all_moves) + all_common)
 
 
 def custom_score_3(game, player):
@@ -186,7 +170,7 @@ class IsolationPlayer:
         positive value large enough to allow the function to return before the
         timer expires.
     """
-    def __init__(self, search_depth=3, score_fn=custom_score, timeout=10.):
+    def __init__(self, search_depth=3, score_fn=custom_score_2, timeout=10.):
         self.search_depth = search_depth
         self.score = score_fn
         self.time_left = None
@@ -244,7 +228,7 @@ class MinimaxPlayer(IsolationPlayer):
         # Return the best move from the last completed search iteration
         return best_move
 
-    def minimax(self, game, depth): #, maximizing_player=True):
+    def minimax(self, game, depth):
         """Implement depth-limited minimax search algorithm as described in
         the lectures.
 
@@ -435,10 +419,6 @@ class AlphaBetaPlayer(IsolationPlayer):
                 each helper function or else your agent will timeout during
                 testing.
         """
-        # if self.time_left() < self.TIMER_THRESHOLD:
-        #     raise SearchTimeout()
-        #
-        # return self.inner_alphabet(game, depth)[0]
         if self.time_left() < self.TIMER_THRESHOLD:
             raise SearchTimeout()
 
@@ -511,40 +491,3 @@ class AlphaBetaPlayer(IsolationPlayer):
             alpha = max(alpha, score)
 
         return best_move
-
-    def inner_alphabet(self, game, depth, alpha=float("-inf"), beta=float("inf")):
-        if self.time_left() < self.TIMER_THRESHOLD:
-            raise SearchTimeout()
-
-        if depth == 0:
-            return (-1, -1), self.score(game, self)
-
-        value, func, best_move, is_alpha = None, None, (-1, -1), True
-
-        if game.active_player == self:
-            value = float("-inf")
-            func = max
-            is_alpha = True
-        else:
-            value = float("inf")
-            func = min
-            is_alpha = False
-
-        for move in game.get_legal_moves():
-            next_ply = game.forecast_move(move)
-            score = self.alphabeta(next_ply, depth - 1, alpha, beta)[1]
-            if score == func(value, score):
-                value = score
-                best_move = move
-            if is_alpha:
-                if value >= beta:
-                    return best_move, value
-                else:
-                    alpha = max(value, alpha)
-            else:
-                if value <= alpha:
-                    return best_move, value
-                else:
-                    beta = min(value, beta)
-
-        return best_move, value
